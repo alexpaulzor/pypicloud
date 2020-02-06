@@ -5,7 +5,7 @@
 </head>
 <body>
   {% for filename, url in pkgs|dictsort %}
-    <a href="{{ url }}">{{ filename }}</a><br>
+    <a href="{{ url }}" {%if filename in pyvers %}data-requires-python="{{pyvers[filename]}}"{% endif %}>{{ filename }}</a><br>
   {%- endfor %}
 </body>
 </html>
