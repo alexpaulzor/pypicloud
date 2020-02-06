@@ -137,6 +137,7 @@ def get_fallback_packages(request, package_name, redirect=True):
     """ Get all package versions for a package from the fallback_base_url """
     dists = request.locator.get_project(package_name)
     pkgs = {}
+    pyvers = {}
     if not request.access.has_permission(package_name, "fallback"):
         return pkgs
     for version, url_set in six.iteritems(dists.get("urls", {})):
@@ -146,7 +147,9 @@ def get_fallback_packages(request, package_name, redirect=True):
             if not redirect:
                 url = request.app_url("api", "package", dist.name, filename)
             pkgs[filename] = url
-    return pkgs
+            if dist.metadata.requires_python:
+                pyvers[filename] = dist.metadata.requires_python
+    return pkgs, pyvers
 
 
 def packages_to_dict(request, packages):
@@ -157,10 +160,13 @@ def packages_to_dict(request, packages):
     return pkgs
 
 
-def _pkg_response(pkgs):
+def _pkg_response(pkgs, pyvers=dict()):
     """ Take a package mapping and return either a dict for jinja or a 404 """
     if pkgs:
-        return {"pkgs": pkgs}
+        out = {"pkgs": pkgs}
+        if pyvers:
+            out['pyvers'] = pyvers
+        return out
     else:
         return HTTPNotFound("No packages found")
 
@@ -206,12 +212,12 @@ def _simple_redirect_always_show(context, request):
             else:
                 return request.request_login()
         else:
-            pkgs = get_fallback_packages(request, context.name)
+            pkgs, pyvers = get_fallback_packages(request, context.name)
             stored_pkgs = packages_to_dict(request, packages)
             # Overwrite existing package urls
             for filename, url in six.iteritems(stored_pkgs):
                 pkgs[filename] = url
-            return _pkg_response(pkgs)
+            return _pkg_response(pkgs, pyvers)
     else:
         return _redirect(context, request)
 
@@ -236,8 +242,8 @@ def _simple_cache(context, request):
         else:
             return request.request_login()
     else:
-        pkgs = get_fallback_packages(request, context.name, False)
-        return _pkg_response(pkgs)
+        pkgs, pyvers = get_fallback_packages(request, context.name, False)
+        return _pkg_response(pkgs, pyvers)
 
 
 def _simple_cache_always_show(context, request):
@@ -251,24 +257,25 @@ def _simple_cache_always_show(context, request):
             return request.request_login()
 
     packages = request.db.all(normalized_name)
+    LOG.warning("cache packages: %s", packages)
     if packages:
         if not request.access.can_update_cache():
             if request.is_logged_in:
-                pkgs = get_fallback_packages(request, context.name)
+                pkgs, pyvers = get_fallback_packages(request, context.name)
                 stored_pkgs = packages_to_dict(request, packages)
                 # Overwrite existing package urls
                 for filename, url in six.iteritems(stored_pkgs):
                     pkgs[filename] = url
-                return _pkg_response(pkgs)
+                return _pkg_response(pkgs, pyvers)
             else:
                 return request.request_login()
         else:
-            pkgs = get_fallback_packages(request, context.name, False)
+            pkgs, pyvers = get_fallback_packages(request, context.name, False)
             stored_pkgs = packages_to_dict(request, packages)
             # Overwrite existing package urls
             for filename, url in six.iteritems(stored_pkgs):
                 pkgs[filename] = url
-            return _pkg_response(pkgs)
+            return _pkg_response(pkgs, pyvers)
     else:
         if not request.access.can_update_cache():
             if request.is_logged_in:
@@ -276,8 +283,8 @@ def _simple_cache_always_show(context, request):
             else:
                 return request.request_login()
         else:
-            pkgs = get_fallback_packages(request, context.name, False)
-            return _pkg_response(pkgs)
+            pkgs, pyvers = get_fallback_packages(request, context.name, False)
+            return _pkg_response(pkgs, pyvers)
 
 
 def _simple_serve(context, request):

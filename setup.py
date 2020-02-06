@@ -18,7 +18,8 @@ REQUIREMENTS = [
     "cryptography",
     # We're doing enough subclassing and monkey patching to where we really do
     # need to lock this in to a specific version.
-    "distlib==0.2.5",
+    # TODO: repin once dev work is done
+    # "distlib==0.3.0",
     "paste",
     "passlib>=1.7",
     "pyramid",
